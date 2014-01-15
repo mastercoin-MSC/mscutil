@@ -113,11 +113,11 @@ func (ss *SimpleSend) SerializeToKey() string {
 		}
 	}
 
-	TransactionType := makeStringArray(strconv.FormatUint(uint64(ss.TransactionType), 16), 8)
-	log.Println("Transaction type: ", TransactionType)
+	transactionType := makeStringArray(strconv.FormatUint(uint64(ss.TransactionType), 16), 8)
+	log.Println("Transaction type: ", transactionType)
 
-	CurrencyId := makeStringArray(strconv.FormatUint(uint64(ss.CurrencyId), 16), 8)
-	log.Println("Currency ID: ", CurrencyId)
+	currencyId := makeStringArray(strconv.FormatUint(uint64(ss.CurrencyId), 16), 8)
+	log.Println("Currency ID: ", currencyId)
 
 	amount := makeStringArray(strconv.FormatUint(ss.Amount, 16), 16)
 	log.Println("Amount: ", amount)
@@ -128,11 +128,11 @@ func (ss *SimpleSend) SerializeToKey() string {
 	// Takes our 62 character string array and imposes the serialized values over it
 	// [0,1,0,0,0,0,0,0,0,0,0....] becomes [0,1,0,0,0,0,0,1,2,3,4....] etc.
 	// TODO: Perhaps make this a bit DRYer if there is no other way of doing it
-	for _, value := range TransactionType {
+	for _, value := range transactionType {
 		raw[pointer] = value
 		pointer++
 	}
-	for _, value := range CurrencyId {
+	for _, value := range currencyId {
 		raw[pointer] = value
 		pointer++
 	}
@@ -153,20 +153,20 @@ func (ss *SimpleSend) SerializeToAddress() string {
 	log.Println("Encoding data to address")
 
 	raw := make([]byte, 25)
-	var Sequence byte = ss.Sequence
-	raw[1] = Sequence
+	var sequence byte = ss.Sequence
+	raw[1] = sequence
 
-	TransactionType := makeBinary(ss.TransactionType)
-	CurrencyId := makeBinary(ss.CurrencyId)
+	transactionType := makeBinary(ss.TransactionType)
+	currencyId := makeBinary(ss.CurrencyId)
 	amount := makeBinary(ss.Amount)
 
 	//TODO: Can we optimise this?
 	pointer := 2
-	for _, value := range TransactionType {
+	for _, value := range transactionType {
 		raw[pointer] = value
 		pointer++
 	}
-	for _, value := range CurrencyId {
+	for _, value := range currencyId {
 		raw[pointer] = value
 		pointer++
 	}
@@ -190,20 +190,20 @@ func DecodeFromAddress(address string) SimpleSend {
 
 	log.Println("Base58 decoded data: %v \n", rawData)
 
-	Sequence := rawData[1]
-	log.Println("Sequence %v", Sequence)
+	sequence := rawData[1]
+	log.Println("Sequence %v", sequence)
 
 	// Takes a byte array value and makes it an integer.
 	// i.e. [0,0,1,2] becomes 257
-	TransactionType := binary.BigEndian.Uint32(rawData[2:6])
-	log.Println("Transaction type: %v", TransactionType)
+	transactionType := binary.BigEndian.Uint32(rawData[2:6])
+	log.Println("Transaction type: %v", transactionType)
 
-	CurrencyId := binary.BigEndian.Uint32(rawData[6:10])
-	log.Println("Currency id: %v ", CurrencyId)
+	currencyId := binary.BigEndian.Uint32(rawData[6:10])
+	log.Println("Currency id: %v ", currencyId)
 
 	amount := binary.BigEndian.Uint64(rawData[10:18])
 	log.Println("Amount: %v", amount)
 
-	ss := SimpleSend{Amount: amount, CurrencyId: CurrencyId, TransactionType: TransactionType, Sequence: Sequence}
+	ss := SimpleSend{Amount: amount, CurrencyId: currencyId, TransactionType: transactionType, Sequence: sequence}
 	return ss
 }
