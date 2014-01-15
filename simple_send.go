@@ -1,15 +1,14 @@
 package mscutil
 
-import "fmt"
-import "strconv"
-import "strings"
-import "math/big"
-import "encoding/binary"
-
-import "github.com/conformal/btcutil"
-import "github.com/op/go-logging"
-
-var log = logging.MustGetLogger("")
+import (
+	"encoding/binary"
+	"fmt"
+	"github.com/conformal/btcutil"
+	"log"
+	"math/big"
+	"strconv"
+	"strings"
+)
 
 //func main(){
 //  logging.SetFormatter(logging.MustStringFormatter("[%{level}] %{message}"))
@@ -30,14 +29,14 @@ type Message struct {
 }
 
 type SimpleSend struct {
-	currency_id      uint32
-	sequence         byte
-	transaction_type uint32
-	amount           uint64
+	CurrencyId      uint32
+	Sequence        byte
+	TransactionType uint32
+	Amount          uint64
 }
 
 func (ss *SimpleSend) Explain() {
-	fmt.Printf("This is a Simple Send transaction for currency id %d and amount %d\n", ss.currency_id, ss.amount)
+	fmt.Println("This is a Simple Send transaction for currency id", ss.CurrencyId, "and Amount", ss.Amount)
 }
 
 // Converts a number to a binary byte slice
@@ -57,7 +56,7 @@ func makeBinary(value interface{}) []byte {
 	} else if v, ok := value.(uint32); ok {
 		val = uint64(v)
 	} else {
-		panic(fmt.Sprintf("makeBinary requires a value that's either a uint32 or an uint64, got: %s ", value))
+		log.Panic("makeBinary requires a value that's either a uint32 or an uint64, got:", value)
 	}
 
 	str := strconv.FormatUint(val, 10)
@@ -101,27 +100,27 @@ func (ss *SimpleSend) SerializeToCompressedPublicKey(xor_target string) string {
 // Encodes as Class B
 // Encodes the data to a format that will be used as Obfuscate source
 func (ss *SimpleSend) SerializeToKey() string {
-	log.Info("Encoding data to KEY")
+	log.Println("Encoding data to KEY")
 
 	raw := make([]string, 62)
-	// Initialises our raw data with all zeros, except for the sequence number.
+	// Initialises our raw data with all zeros, except for the Sequence number.
 	for i, _ := range raw {
 		raw[i] = "0"
 
-		// This is the 'fake' sequence number, which we don't really need for Class B
+		// This is the 'fake' Sequence number, which we don't really need for Class B
 		if i == 1 {
 			raw[i] = "1"
 		}
 	}
 
-	transaction_type := makeStringArray(strconv.FormatUint(uint64(ss.transaction_type), 16), 8)
-	log.Debug("Transaction type: ", transaction_type)
+	TransactionType := makeStringArray(strconv.FormatUint(uint64(ss.TransactionType), 16), 8)
+	log.Println("Transaction type: ", TransactionType)
 
-	currency_id := makeStringArray(strconv.FormatUint(uint64(ss.currency_id), 16), 8)
-	log.Debug("Currency ID: ", currency_id)
+	CurrencyId := makeStringArray(strconv.FormatUint(uint64(ss.CurrencyId), 16), 8)
+	log.Println("Currency ID: ", CurrencyId)
 
-	amount := makeStringArray(strconv.FormatUint(ss.amount, 16), 16)
-	log.Debug("Amount: ", amount)
+	amount := makeStringArray(strconv.FormatUint(ss.Amount, 16), 16)
+	log.Println("Amount: ", amount)
 
 	// Start of the data
 	pointer := 2
@@ -129,11 +128,11 @@ func (ss *SimpleSend) SerializeToKey() string {
 	// Takes our 62 character string array and imposes the serialized values over it
 	// [0,1,0,0,0,0,0,0,0,0,0....] becomes [0,1,0,0,0,0,0,1,2,3,4....] etc.
 	// TODO: Perhaps make this a bit DRYer if there is no other way of doing it
-	for _, value := range transaction_type {
+	for _, value := range TransactionType {
 		raw[pointer] = value
 		pointer++
 	}
-	for _, value := range currency_id {
+	for _, value := range CurrencyId {
 		raw[pointer] = value
 		pointer++
 	}
@@ -144,30 +143,30 @@ func (ss *SimpleSend) SerializeToKey() string {
 
 	rawString := strings.Join(raw, "")
 
-	log.Debug("Raw string: ", rawString)
+	log.Println("Raw string: ", rawString)
 
 	return rawString
 }
 
 // Encodes as Class A
 func (ss *SimpleSend) SerializeToAddress() string {
-	log.Info("Encoding data to address")
+	log.Println("Encoding data to address")
 
 	raw := make([]byte, 25)
-	var sequence byte = ss.sequence
-	raw[1] = sequence
+	var Sequence byte = ss.Sequence
+	raw[1] = Sequence
 
-	transaction_type := makeBinary(ss.transaction_type)
-	currency_id := makeBinary(ss.currency_id)
-	amount := makeBinary(ss.amount)
+	TransactionType := makeBinary(ss.TransactionType)
+	CurrencyId := makeBinary(ss.CurrencyId)
+	amount := makeBinary(ss.Amount)
 
 	//TODO: Can we optimise this?
 	pointer := 2
-	for _, value := range transaction_type {
+	for _, value := range TransactionType {
 		raw[pointer] = value
 		pointer++
 	}
-	for _, value := range currency_id {
+	for _, value := range CurrencyId {
 		raw[pointer] = value
 		pointer++
 	}
@@ -178,33 +177,33 @@ func (ss *SimpleSend) SerializeToAddress() string {
 	//////////////////////////////
 
 	rawData := btcutil.Base58Encode(raw)
-	log.Debug("Raw information: ", raw)
-	log.Debug("Encoded to address", rawData)
+	log.Println("Raw information: ", raw)
+	log.Println("Encoded to address", rawData)
 	return rawData
 }
 
 // Decodes Class A - Simple Sends
 func DecodeFromAddress(address string) SimpleSend {
-	log.Info("Decoding address '%s'.\n", address)
+	log.Println("Decoding address '%s'.\n", address)
 
 	rawData := btcutil.Base58Decode(address)
 
-	log.Debug("Base58 decoded data: %v \n", rawData)
+	log.Println("Base58 decoded data: %v \n", rawData)
 
-	sequence := rawData[1]
-	log.Debug("Sequence %v", sequence)
+	Sequence := rawData[1]
+	log.Println("Sequence %v", Sequence)
 
 	// Takes a byte array value and makes it an integer.
 	// i.e. [0,0,1,2] becomes 257
-	transaction_type := binary.BigEndian.Uint32(rawData[2:6])
-	log.Debug("Transaction type: %v", transaction_type)
+	TransactionType := binary.BigEndian.Uint32(rawData[2:6])
+	log.Println("Transaction type: %v", TransactionType)
 
-	currency_id := binary.BigEndian.Uint32(rawData[6:10])
-	log.Debug("Currency id: %v ", currency_id)
+	CurrencyId := binary.BigEndian.Uint32(rawData[6:10])
+	log.Println("Currency id: %v ", CurrencyId)
 
 	amount := binary.BigEndian.Uint64(rawData[10:18])
-	log.Debug("Amount: %v", amount)
+	log.Println("Amount: %v", amount)
 
-	ss := SimpleSend{amount: amount, currency_id: currency_id, transaction_type: transaction_type, sequence: sequence}
+	ss := SimpleSend{Amount: amount, CurrencyId: CurrencyId, TransactionType: TransactionType, Sequence: Sequence}
 	return ss
 }
