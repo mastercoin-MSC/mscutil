@@ -8,6 +8,12 @@ import (
 
 const ExodusAddress string = "1EXoDusjGwvnjZUyKkxZ4UHEf77z6A5S4P"
 
+const (
+	FundraiserEndBlock    = int64(255365)
+	FundraiserEndTime     = int64(1377993600) // For bonus generation, not Development coins
+	DevelopmentCoinsStart = int64(1377993874) // At this time we start Development coins generation
+)
+
 func GetExodusTransactions(block *btcutil.Block) []*btcutil.Tx {
 	var txs []*btcutil.Tx
 
@@ -19,7 +25,7 @@ func GetExodusTransactions(block *btcutil.Block) []*btcutil.Tx {
 			// Check each output address and if there's an address going to the exodus address
 			// we add it to tx slice
 			for _, addr := range addrs {
-				if addr == ExodusAddress {
+				if addr.Addr == ExodusAddress {
 					txs = append(txs, tx)
 					// Continue, we don't care if there are more exodus addresses
 					continue
@@ -31,17 +37,38 @@ func GetExodusTransactions(block *btcutil.Block) []*btcutil.Tx {
 	return txs
 }
 
-func GetAddrs(pkScript []byte) (ret []string, scriptClass btcscript.ScriptClass) {
+type Address struct {
+  Addr string
+  Raw  []byte
+}
+
+func GetAddrs(pkScript []byte) (ret []Address, scriptClass btcscript.ScriptClass) {
 	// Extract the address from the script pub key
 	scriptClass, addrs, _, _ := btcscript.ExtractPkScriptAddrs(pkScript, btcwire.MainNet)
 	// Check each output address and if there's an address going to the exodus address
 	// we add it to tx slice
 	for _, addr := range addrs {
-		ret = append(ret, addr.EncodeAddress())
+		// Script address returns the public key if it's a multi sig
+          ret = append(ret, Address{Addr: addr.EncodeAddress(), Raw: addr.ScriptAddress()})
 	}
 
 	return
 }
+
+/*
+// Generates an address from a input script signature
+func GetAddressFromScriptSig(scriptSig []byte) (string, error) {
+  pubkey, _ := hex.DecodeString("040df5ef88d24e2414ad47c9a59a367c96120ab7c5f13a0683e243b1a0747ebd2a740d3eec1f7bd0cf17b85c0e5aa8801a7400eda229f3e0e40e40c0313d6ab5a8")
+  fmt.Println(pubkey)
+
+  a, err := btcutil.NewAddressPubKey(pubkey, btcwire.MainNet)
+  if err != nil {
+    return err
+  }
+
+  return a.EncodeAddress()
+}
+*/
 
 type MsgType byte
 
