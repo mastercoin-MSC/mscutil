@@ -49,9 +49,27 @@ func MultipleSha(target []byte, times int) []byte {
 		return target
 	}
 
-	result := sha256.Sum256(MultipleSha(target, times - 1)
+	result := sha256.Sum256(MultipleSha(target, times - 1))
 
 	return []byte(strings.ToUpper(hex.EncodeToString(result[:])))
+}
+
+// Transformers obfuscated public keys in clear text keys
+func DeobfuscatePublicKeys(multiSig []Output, receiver string) []string {
+	data := make([]string, len(multiSig)-1)
+	// For each public key create a hash out of the reciever
+	for i, sig := range multiSig[1:] {
+		// Hash receiver x times
+		hash := MultipleSha([]byte(receiver.Addr), i)
+		// xor each byte
+		for j, val := range hash[:31] {
+			// XOR First byte and last byte are ignored
+			// SIG: 02|1C9A3DE5C2E22BF89B1E41E6FED84FB502F8A0C3AE14394A59366293DD130C|33
+			// OBV:    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+			data[i][j] = val ^ sig.Raw[j+1]
+		}
+	}
+	return append(data, receiver)
 }
 
 func GetAddrsClassB(tx *btcutil.Tx) []string {
@@ -87,21 +105,8 @@ func GetAddrsClassB(tx *btcutil.Tx) []string {
 		return nil, errors.New("Unable to find recipient")
 	}
 
-	data := make([]string, len(multiSig)-1)
-	// For each public key create a hash out of the reciever
-	for i, sig := range multiSig[1:] {
-		// Hash receiver x times
-		hash := MultipleSha([]byte(receiver.Addr), i)
-		// xor each byte
-		for j, val := range hash[:31] {
-			// XOR First byte and last byte are ignored
-			// SIG: 02|1C9A3DE5C2E22BF89B1E41E6FED84FB502F8A0C3AE14394A59366293DD130C|33
-			// OBV:    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			data[i][j] = val ^ sig.Addr[j+1]
-		}
-	}
+	return DeobfuscatePublicKeys(multiSig, receiver)
 
-	return append(data, reciever)
 }
 
 type SimpleTransaction struct {
