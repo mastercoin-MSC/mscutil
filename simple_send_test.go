@@ -6,16 +6,15 @@ import (
 	"strconv"
 	"testing"
 )
-
 func TestSerializeToKey(t *testing.T) {
 	// TODO: Verify values are the same as ruby implementation
 	tests := []struct {
 		address string
 		values  SimpleSend
 	}{
-		{"01000000000000000200000000000000320000000000000000000000000000", SimpleSend{currency_id: 2, sequence: 76, transaction_type: 0, amount: 50}},
-		{"010000000000000002000000000000305e0000000000000000000000000000", SimpleSend{currency_id: 2, sequence: 48, transaction_type: 0, amount: 12382}},
-		{"0100000000000000010000000000018fee0000000000000000000000000000", SimpleSend{currency_id: 1, sequence: 48, transaction_type: 0, amount: 102382}},
+		{"01000000000000000200000000000000320000000000000000000000000000", SimpleSend{CurrencyId: 2, Sequence: 76, TransactionType: 0, Amount: 50}},
+		{"010000000000000002000000000000305e0000000000000000000000000000", SimpleSend{CurrencyId: 2, Sequence: 48, TransactionType: 0, Amount: 12382}},
+		{"0100000000000000010000000000018fee0000000000000000000000000000", SimpleSend{CurrencyId: 1, Sequence: 48, TransactionType: 0, Amount: 102382}},
 	}
 
 	for _, pair := range tests {
@@ -92,14 +91,33 @@ func TestMakeBinary64(t *testing.T) {
 	}
 }
 
+func TestDecodeFromPulicKeys(t *testing.T){
+	tests := []struct{
+		publicKeys []string
+		values SimpleSend
+	}{
+		{[]string{"0100000000000000020000000005f5e1", "000000000000000000000000000000"}, SimpleSend{CurrencyId: 2, Sequence: 1, TransactionType: 0, Amount: 1e8}},
+	}
+	for _, pair := range tests {
+		v := DecodeFromPublicKeys(pair.publicKeys)
+		if v != pair.values {
+			t.Error("For", pair.publicKeys,
+				"Expected", pair.values,
+				"Got", v,
+			)
+
+		}
+	}
+}
+
 func TestDecodeFromAddress(t *testing.T) {
 	tests := []struct {
 		address string
 		values  SimpleSend
 	}{
-		{"17vrMab8gQx72eCEaUxJzL4fg5VwEUumJQ", SimpleSend{currency_id: 2, sequence: 76, transaction_type: 0, amount: 50}},
-		{"15NoSD4F1ULYHPfSiV1dp1kr9n2bBffGGd", SimpleSend{currency_id: 2, sequence: 48, transaction_type: 0, amount: 12382}},
-		{"15NoSD4F1ULYHGW3TK6khj6NEZsPAmHf41", SimpleSend{currency_id: 1, sequence: 48, transaction_type: 0, amount: 102382}},
+		{"17vrMab8gQx72eCEaUxJzL4fg5VwEUumJQ", SimpleSend{CurrencyId: 2, Sequence: 76, TransactionType: 0, Amount: 50}},
+		{"15NoSD4F1ULYHPfSiV1dp1kr9n2bBffGGd", SimpleSend{CurrencyId: 2, Sequence: 48, TransactionType: 0, Amount: 12382}},
+		{"15NoSD4F1ULYHGW3TK6khj6NEZsPAmHf41", SimpleSend{CurrencyId: 1, Sequence: 48, TransactionType: 0, Amount: 102382}},
 	}
 
 	for _, pair := range tests {
@@ -119,9 +137,9 @@ func TestEncodeToAddress(t *testing.T) {
 		address string
 		values  SimpleSend
 	}{
-		{"17vrMab8gQx72eCEaUxJzL4fg5VwDuND4T", SimpleSend{currency_id: 2, sequence: 76, transaction_type: 0, amount: 50}},
-		{"15NoSD4F1ULYHPfSiV1dp1kr9n2b9Npxf1", SimpleSend{currency_id: 2, sequence: 48, transaction_type: 0, amount: 12382}},
-		{"15NoSD4F1ULYHGW3TK6khj6NEZsP9ariEK", SimpleSend{currency_id: 1, sequence: 48, transaction_type: 0, amount: 102382}},
+		{"17vrMab8gQx72eCEaUxJzL4fg5VwDuND4T", SimpleSend{CurrencyId: 2, Sequence: 76, TransactionType: 0, Amount: 50}},
+		{"15NoSD4F1ULYHPfSiV1dp1kr9n2b9Npxf1", SimpleSend{CurrencyId: 2, Sequence: 48, TransactionType: 0, Amount: 12382}},
+		{"15NoSD4F1ULYHGW3TK6khj6NEZsP9ariEK", SimpleSend{CurrencyId: 1, Sequence: 48, TransactionType: 0, Amount: 102382}},
 	}
 
 	for _, pair := range tests {

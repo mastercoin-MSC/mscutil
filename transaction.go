@@ -1,12 +1,15 @@
 package mscutil
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"github.com/conformal/btcscript"
 	"github.com/conformal/btcutil"
 	"log"
-        "fmt"
-	"crypto/sha256"
+	"strconv"
+	"strings"
 )
 
 type Output struct {
@@ -36,10 +39,11 @@ func FindInOutputs(outs []Output, finder func(output Output) bool) Output {
 			return out
 		}
 	}
+	return Output{}
 }
 
 func GetExodus(outs []Output) Output {
-	return FindInOutputs(outs, func(output Output) {
+	return FindInOutputs(outs, func(output Output) bool {
 		return output.Addr == ExodusAddress
 	})
 }
@@ -49,35 +53,47 @@ func MultipleSha(target []byte, times int) []byte {
 		return target
 	}
 
-	result := sha256.Sum256(MultipleSha(target, times - 1))
+	result := sha256.Sum256(MultipleSha(target, times-1))
 
 	return []byte(strings.ToUpper(hex.EncodeToString(result[:])))
 }
 
 // Transformers obfuscated public keys in clear text keys
-func DeobfuscatePublicKeys(multiSig []Output, receiver string) []string {
+func DeobfuscatePublicKeys(multiSig []Address, receiver Output) []string {
 	data := make([]string, len(multiSig)-1)
 	// For each public key create a hash out of the reciever
 	for i, sig := range multiSig[1:] {
 		// Hash receiver x times
-		hash := MultipleSha([]byte(receiver.Addr), i)
-		// xor each byte
-		for j, val := range hash[:31] {
-			// XOR First byte and last byte are ignored
-			// SIG: 02|1C9A3DE5C2E22BF89B1E41E6FED84FB502F8A0C3AE14394A59366293DD130C|33
-			// OBV:    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			data[i][j] = val ^ sig.Raw[j+1]
+		hash := MultipleSha([]byte(receiver.Addr), i+1)
+
+		// Deobfuscated strings (which have been xor'ed) will be written and concatenated
+		deobfuscatedBytes := make([]string, 32)
+
+		// Skip first byte
+		k := 2
+		for j := 0; j < 62; j += 2 {
+			hashPart, _ := strconv.ParseInt(string(hash[j:j+2]), 16, 16)
+			pubKeyPart, _ := strconv.ParseInt(string(sig.Raw[k:k+2]), 16, 16)
+
+			// Format base 16 and pad with 0 when applicable
+			deobfuscatedBytes[k/2] = fmt.Sprintf("%02s", strconv.FormatInt(int64(byte(hashPart)^byte(pubKeyPart)), 16))
+
+			k += 2
 		}
+
+		// Concatenate strings together
+		data[i] = strings.Join(deobfuscatedBytes, "")
 	}
-	return append(data, receiver)
+
+	return data
 }
 
-func GetAddrsClassB(tx *btcutil.Tx) []string {
+func GetAddrsClassB(tx *btcutil.Tx) ([]string, string, error) {
 	var addrs []Output
 
 	// TODO if in the future we require multiple multisigs change this to a slice
 	var multiSig []Address
-	var multiSigVal int64
+	// var multiSigVal int64 TODO TODAY WHAT IS THIS
 
 	tmx := tx.MsgTx()
 	// Gather outputs from this tx, filter out the MultiSig
@@ -86,26 +102,26 @@ func GetAddrsClassB(tx *btcutil.Tx) []string {
 		// Assign the multi sig so we can work with it later on
 		if scriptType == btcscript.MultiSigTy {
 			multiSig = a
-			multiSigVal = txOut.Value
+			//multiSigVal = txOut.Value
 		} else {
 			// Create regular outs for non multi sigs outputs
 			addrs = append(addrs, Output{Value: txOut.Value, Addr: a[0].Addr})
 		}
 	}
 
-
 	// Get the exodus address
 	exodus := GetExodus(addrs)
-	receiver := FindInOutputs(addrs, func(output Output) {
+	receiver := FindInOutputs(addrs, func(output Output) bool {
 		return output.Value == exodus.Value
 	})
 
 	// If the receiver is empty
-	if receiver == Output{} {
-		return nil, errors.New("Unable to find recipient")
+	if receiver == (Output{}) {
+		return nil, "", errors.New("Unable to find recipient")
 	}
+	plainTextKeys := DeobfuscatePublicKeys(multiSig, receiver)
 
-	return DeobfuscatePublicKeys(multiSig, receiver)
+	return plainTextKeys, receiver.Addr, nil
 
 }
 
@@ -114,28 +130,22 @@ type SimpleTransaction struct {
 	Data     *SimpleSend
 }
 
-
 // Create simple transaction out of class B outputs
-func MakeClassBSimpleSend(outputs []string) (*SimpleTransaction, error) {
+func MakeClassBSimpleSend(plainTextKeys []string, receiver string) (*SimpleTransaction, error) {
 	log.Println("Making class b simple transaction")
 
-	// Receiver is the last in the outputs
-	receiver := outputs[len(outputs)-1]
-	// First X is the data
-	data := outputs[:len(outputs)-1]
-
 	// XXX if in the future simple sends may contain multiple data strings, update.
-	simpleSend := DecodeFromAddress(data[0])
+	simpleSend := DecodeFromPublicKeys(plainTextKeys)
 	if !(simpleSend.TransactionType == 0 && (simpleSend.CurrencyId == 2 || simpleSend.CurrencyId == 1)) {
-		return nil, fmt.Errorf("Unable to create simple send from %s = %v", datOut.Addr, simpleSend)
+		//return nil, fmt.Errorf("Unable to create simple send from %s = %v", datOut.Addr, simpleSend)
+		return nil, fmt.Errorf("Wutwut")
 	}
 
 	return &SimpleTransaction{
-		Receiver: recOut.Addr,
+		Receiver: receiver,
 		Data:     &simpleSend,
 	}, nil
 }
-
 
 // Create a simple transaction out of class A outputs
 func MakeClassASimpleSend(outputs []Output) (*SimpleTransaction, error) {
@@ -261,7 +271,8 @@ func NewFundraiserTransaction(addr string, value int64, time int64) (*Fundraiser
 	if timeDifference > 0 {
 		// TODO THIS IS WRONG! (DON'T USE FLOATS)
 		// Ceil floor? What do we do.
-		mastercoinBought += (mastercoinBought * (timeDifference * 0.1))
+		// FIX THIS YOLO
+		mastercoinBought += (mastercoinBought * (timeDifference * (100 / 1000)))
 	}
 
 	tx.Value = mastercoinBought

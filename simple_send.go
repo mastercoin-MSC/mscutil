@@ -2,6 +2,7 @@ package mscutil
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"github.com/conformal/btcutil"
 	"log"
@@ -186,6 +187,25 @@ func GetTypeFromAddress(address string) MsgType {
   rawData := btcutil.Base58Decode(address)
 
   return MsgType(binary.BigEndian.Uint32(rawData[2:6]))
+}
+
+func DecodeFromPublicKeys(keys []string) SimpleSend {
+	publicKey := strings.Join(keys, "")
+
+	tt,_ := hex.DecodeString(publicKey[2:10])
+	transactionType := binary.BigEndian.Uint32(tt)
+	log.Println("Transaction type:", transactionType)
+
+	cid,_ := hex.DecodeString(publicKey[10:18])
+	currencyId := binary.BigEndian.Uint32(cid)
+	log.Println("Currency id:", currencyId)
+
+	a,_ := hex.DecodeString(publicKey[18:34])
+	amount := binary.BigEndian.Uint64(a)
+	log.Println("Amount:", amount)
+
+	ss := SimpleSend{Amount: amount, CurrencyId: currencyId, TransactionType: transactionType, Sequence: 1}
+	return ss
 }
 
 // Decodes Class A - Simple Sends
