@@ -2,8 +2,38 @@ package mscutil
 
 import (
 	"testing"
+	"code.google.com/p/godec/dec"
 	_"fmt"
 )
+func DecFromString(input string) *dec.Dec{
+	x := new(dec.Dec)
+	x.SetString(input)
+	return x
+}
+
+func TestNewFundraiserTransaction(t *testing.T){
+	tests := []struct {
+		address Address
+		value int64
+		time int64
+		tx FundraiserTransaction
+	}{
+		{Address{Addr: "1JvXUatqyiBs1gsp2vYopyc9QnStfVn2F1"}, 5e8, 1375306351, FundraiserTransaction{Addr: "1JvXUatqyiBs1gsp2vYopyc9QnStfVn2F1", Value: DecFromString("722.16013558"), Time:1375306351}},
+		{Address{Addr: "1AsX2fv1QRFgCYT3F1YMWm37nWnW8TkZnm"}, 102e6, 1375429010, FundraiserTransaction{Addr: "1AsX2fv1QRFgCYT3F1YMWm37nWnW8TkZnm", Value: DecFromString("145.25201389"), Time:1375429010}},
+		{Address{Addr: "163dXoX3bfrM8t8DwbhzfHdGYNQfYfXhK6"},50e8,1375531887, FundraiserTransaction{Addr: "163dXoX3bfrM8t8DwbhzfHdGYNQfYfXhK6", Value: DecFromString("7035.14632937"), Time:1375531887}},
+	}
+	for _, pair := range tests{
+		result,_ := NewFundraiserTransaction(pair.address, pair.value, pair.time)
+
+		if pair.tx.Value.Cmp(result.Value) != 0{
+			t.Error("for", pair.value, 
+			"and", pair.time,
+			"Expected", pair.tx,
+			"But got",result)
+		}
+
+	}
+}
 
 func TestMultipleSha(t *testing.T){
   tests := []struct {
@@ -33,9 +63,9 @@ func TestDeobfuscatePublicKeys(t *testing.T) {
 	tests := []struct {
 		publicKeys []Address
 		ctPublicKey string
-		receiver Output
+		receiver Address
 	}{
-		{ []Address{Address{Raw: key1},Address{Raw: key2}}, "0100000000000000020000000005f5e1000000000000000000000000000000", Output{Addr: "13NRX88EZbS5q81x6XFrTECzrciPREo821"}},
+		{ []Address{Address{Raw: key1},Address{Raw: key2}}, "0100000000000000020000000005f5e1000000000000000000000000000000", Address{Addr: "13NRX88EZbS5q81x6XFrTECzrciPREo821"}},
 	}
 
 	for _, pair := range tests {

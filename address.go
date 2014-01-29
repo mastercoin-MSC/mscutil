@@ -4,6 +4,7 @@ import (
 	"github.com/conformal/btcscript"
 	"github.com/conformal/btcutil"
 	"github.com/conformal/btcwire"
+	"github.com/conformal/btcdb"
 )
 
 const ExodusAddress string = "1EXoDusjGwvnjZUyKkxZ4UHEf77z6A5S4P"
@@ -38,8 +39,8 @@ func GetExodusTransactions(block *btcutil.Block) []*btcutil.Tx {
 }
 
 type Address struct {
-  Addr string
-  Raw  []byte
+	Addr string
+	Raw  []byte
 }
 
 func GetAddrs(pkScript []byte) (ret []Address, scriptClass btcscript.ScriptClass) {
@@ -49,7 +50,7 @@ func GetAddrs(pkScript []byte) (ret []Address, scriptClass btcscript.ScriptClass
 	// we add it to tx slice
 	for _, addr := range addrs {
 		// Script address returns the public key if it's a multi sig
-          ret = append(ret, Address{Addr: addr.EncodeAddress(), Raw: addr.ScriptAddress()})
+		ret = append(ret, Address{Addr: addr.EncodeAddress(), Raw: addr.ScriptAddress()})
 	}
 
 	return
@@ -90,6 +91,37 @@ func (m MsgType) String() string {
 	}
 
 	return msgTypeToString[m]
+}
+func FindSender(txIns []*btcwire.TxIn, btcdb btcdb.Db) (Address, error) {
+	inputs := make(map[string]int64)
+
+	for _, txIn := range txIns {
+		op := txIn.PreviousOutpoint
+		hash := op.Hash
+		index := op.Index
+		transactions, err := btcdb.FetchTxBySha(&hash)
+		if err != nil {
+			return Address{}, err
+		}
+
+		previousOutput := transactions[0].Tx.TxOut[index]
+
+		// The largest contributor receives the Mastercoins, so add multiple address values together
+		address, _ := GetAddrs(previousOutput.PkScript)
+		inputs[address[0].Addr] += previousOutput.Value
+	}
+
+	// Decide which input has the most value so we know who is sending this transaction
+	var highest int64
+	var highestAddress string
+
+	for k, v := range inputs {
+		if v > highest {
+			highest = v
+			highestAddress = k
+		}
+	}
+      return Address{Addr: highestAddress}, nil
 }
 
 func GetType(tx *btcutil.Tx) (t MsgType) {

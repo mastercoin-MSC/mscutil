@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/conformal/btcscript"
 	"github.com/conformal/btcutil"
+	"code.google.com/p/godec/dec"
 	"log"
 	"strconv"
 	"strings"
@@ -59,12 +60,12 @@ func MultipleSha(target []byte, times int) []byte {
 }
 
 // Transformers obfuscated public keys in clear text keys
-func DeobfuscatePublicKeys(multiSig []Address, receiver Output) []string {
+func DeobfuscatePublicKeys(multiSig []Address, sender Address) []string {
 	data := make([]string, len(multiSig)-1)
 	// For each public key create a hash out of the reciever
 	for i, sig := range multiSig[1:] {
 		// Hash receiver x times
-		hash := MultipleSha([]byte(receiver.Addr), i+1)
+		hash := MultipleSha([]byte(sender.Addr), i+1)
 
 		// Deobfuscated strings (which have been xor'ed) will be written and concatenated
 		deobfuscatedBytes := make([]string, 32)
@@ -88,12 +89,12 @@ func DeobfuscatePublicKeys(multiSig []Address, receiver Output) []string {
 	return data
 }
 
-func GetAddrsClassB(tx *btcutil.Tx) ([]string, string, error) {
+func GetAddrsClassB(tx *btcutil.Tx, sender Address) ([]string, string, error) {
 	var addrs []Output
 
 	// TODO if in the future we require multiple multisigs change this to a slice
 	var multiSig []Address
-	// var multiSigVal int64 TODO TODAY WHAT IS THIS
+	// var multiSigVal int64 
 
 	tmx := tx.MsgTx()
 	// Gather outputs from this tx, filter out the MultiSig
@@ -119,7 +120,8 @@ func GetAddrsClassB(tx *btcutil.Tx) ([]string, string, error) {
 	if receiver == (Output{}) {
 		return nil, "", errors.New("Unable to find recipient")
 	}
-	plainTextKeys := DeobfuscatePublicKeys(multiSig, receiver)
+
+	plainTextKeys := DeobfuscatePublicKeys(multiSig, sender)
 
 	return plainTextKeys, receiver.Addr, nil
 
@@ -127,6 +129,7 @@ func GetAddrsClassB(tx *btcutil.Tx) ([]string, string, error) {
 
 type SimpleTransaction struct {
 	Receiver string
+	Sender string
 	Data     *SimpleSend
 }
 
@@ -148,7 +151,7 @@ func MakeClassBSimpleSend(plainTextKeys []string, receiver string) (*SimpleTrans
 }
 
 // Create a simple transaction out of class A outputs
-func MakeClassASimpleSend(outputs []Output) (*SimpleTransaction, error) {
+func MakeClassASimpleSend(sender Address, outputs []Output) (*SimpleTransaction, error) {
 	var data *SimpleSend
 
 	// Find the data address
@@ -168,7 +171,7 @@ func MakeClassASimpleSend(outputs []Output) (*SimpleTransaction, error) {
 	log.Println("Data address found:", data)
 
 	// Level 1 - Loop over all Exodus-valued outputs to assume this is a perfect transaction
-	log.Println("Locating sequence number: ", data.Sequence+1)
+	log.Println("Looking for sequence number: ", data.Sequence+1)
 
 	log.Println("Attempting Level 1 search")
 	receiver, err := locateRecipientAddress(outputs, data.Sequence, false)
@@ -188,11 +191,14 @@ func MakeClassASimpleSend(outputs []Output) (*SimpleTransaction, error) {
 		if receiver == "" {
 			return nil, errors.New("No recipient address found, invalidating")
 		}
+	}else{
+		log.Println("Found sequence number, receiver is", receiver)
 	}
 
 	return &SimpleTransaction{
 		Receiver: receiver,
 		Data:     data,
+		Sender: sender.Addr,
 	}, nil
 }
 
@@ -252,32 +258,46 @@ func (m TxType) String() string {
 
 type FundraiserTransaction struct {
 	Addr  string
-	Value int64
+	Value *dec.Dec
 	Time  int64
 }
 
-func NewFundraiserTransaction(addr string, value int64, time int64) (*FundraiserTransaction, error) {
+func NewFundraiserTransaction(addr Address, value int64, time int64) (*FundraiserTransaction, error) {
 	tx := &FundraiserTransaction{
-		Addr:  addr,
-		Value: 0,
+		Addr:  addr.Addr,
 		Time:  time,
 	}
 
-	// Base line amount bought from fundraiser
-	mastercoinBought := value / 1e8 * 100
+	// Base line amount bought from fundraiser, 1 btc gets you 100 msc
+	mastercoinBought := dec.NewDecInt64((value * 100))
+	mastercoinBought.Quo(mastercoinBought, dec.NewDecInt64(1e8), dec.Scale(18), dec.RoundHalfUp)
+
+	fmt.Println("Baseline MSC Bought:", mastercoinBought)
 
 	// Bonus amount received
-	timeDifference := FundraiserEndTime - time
-	if timeDifference > 0 {
-		// TODO THIS IS WRONG! (DON'T USE FLOATS)
-		// Ceil floor? What do we do.
-		// FIX THIS YOLO
-		mastercoinBought += (mastercoinBought * (timeDifference * (100 / 1000)))
+	diff := dec.NewDecInt64(FundraiserEndTime - time)
+	timeDifference := diff.Quo(diff, dec.NewDecInt64(604800), dec.Scale(18), dec.RoundHalfUp)
+
+	fmt.Println("Time difference", timeDifference)
+
+	if timeDifference.Cmp(dec.NewDecInt64(0)) > 0 {
+		// bought += bought * (timediff * 0.1)
+
+		x := new(dec.Dec)
+		x.SetString("0.1")
+
+		ratio := new(dec.Dec).Mul(timeDifference,x)
+		fmt.Println("Ratio:", ratio)
+		bonus := new(dec.Dec).Mul(ratio, mastercoinBought)
+		bonus.Round(bonus, dec.Scale(18), dec.RoundDown)
+
+		mastercoinBought.Add(mastercoinBought, bonus)
+		mastercoinBought.Round(mastercoinBought, dec.Scale(8), dec.RoundHalfUp)
 	}
 
 	tx.Value = mastercoinBought
 
-	log.Println("Attempting to create fundraiser tx", tx)
+	Logger.Println("Attempting to create fundraiser tx", tx)
 
 	return tx, nil
 }
