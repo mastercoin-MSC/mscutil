@@ -26,9 +26,12 @@ func GetAddrsClassA(tx *btcutil.Tx) []Output {
 	for _, txOut := range mtx.TxOut {
 		a, _ := GetAddrs(txOut.PkScript)
 
-		out := Output{Value: txOut.Value, Addr: a[0].Addr}
+		// There are some bogus transactions out there that don't generate a valid address, skip these outputs
+		if len(a) > 0 {
+			out := Output{Value: txOut.Value, Addr: a[0].Addr}
 
-		addrs = append(addrs, out) // a is one address guaranteed
+			addrs = append(addrs, out) // a is one address guaranteed
+		}
 	}
 
 	return addrs
@@ -62,6 +65,7 @@ func MultipleSha(target []byte, times int) []byte {
 // Transformers obfuscated public keys in clear text keys
 func DeobfuscatePublicKeys(multiSig []Address, sender Address) []string {
 	data := make([]string, len(multiSig)-1)
+	fmt.Println("Got keys:", multiSig[1:])
 	// For each public key create a hash out of the reciever
 	for i, sig := range multiSig[1:] {
 		// Hash receiver x times
@@ -84,6 +88,7 @@ func DeobfuscatePublicKeys(multiSig []Address, sender Address) []string {
 
 		// Concatenate strings together
 		data[i] = strings.Join(deobfuscatedBytes, "")
+		fmt.Println("Data[i]", data[i])
 	}
 
 	return data
@@ -102,8 +107,8 @@ func GetAddrsClassB(tx *btcutil.Tx, sender Address) ([]string, string, error) {
 		a, scriptType := GetAddrs(txOut.PkScript)
 		// Assign the multi sig so we can work with it later on
 		if scriptType == btcscript.MultiSigTy {
+			// TODO: In the future we might want to add support for multiple outputs with multisig support
 			multiSig = a
-			//multiSigVal = txOut.Value
 		} else {
 			// Create regular outs for non multi sigs outputs
 			addrs = append(addrs, Output{Value: txOut.Value, Addr: a[0].Addr})
@@ -121,6 +126,9 @@ func GetAddrsClassB(tx *btcutil.Tx, sender Address) ([]string, string, error) {
 		return nil, "", errors.New("Unable to find recipient")
 	}
 
+	if len(multiSig) < 2 {
+		return nil,"", errors.New("Invalid multisignature data, can't create Mastercoin transaction")
+	}
 	plainTextKeys := DeobfuscatePublicKeys(multiSig, sender)
 
 	return plainTextKeys, receiver.Addr, nil
@@ -134,7 +142,7 @@ type SimpleTransaction struct {
 }
 
 // Create simple transaction out of class B outputs
-func MakeClassBSimpleSend(plainTextKeys []string, receiver string) (*SimpleTransaction, error) {
+func MakeClassBSimpleSend(plainTextKeys []string, receiver string, sender Address) (*SimpleTransaction, error) {
 	log.Println("Making class b simple transaction")
 
 	// XXX if in the future simple sends may contain multiple data strings, update.
@@ -147,6 +155,7 @@ func MakeClassBSimpleSend(plainTextKeys []string, receiver string) (*SimpleTrans
 	return &SimpleTransaction{
 		Receiver: receiver,
 		Data:     &simpleSend,
+		Sender: sender.Addr,
 	}, nil
 }
 
@@ -297,7 +306,7 @@ func NewFundraiserTransaction(addr Address, value int64, time int64) (*Fundraise
 
 	tx.Value = mastercoinBought
 
-	Logger.Println("Attempting to create fundraiser tx", tx)
+	Logger.Println("Created fundraiser transaction", tx)
 
 	return tx, nil
 }

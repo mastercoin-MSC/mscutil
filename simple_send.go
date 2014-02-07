@@ -194,15 +194,15 @@ func DecodeFromPublicKeys(keys []string) SimpleSend {
 
 	tt,_ := hex.DecodeString(publicKey[2:10])
 	transactionType := binary.BigEndian.Uint32(tt)
-	log.Println("Transaction type:", transactionType)
+	Logger.Println("Transaction type:", transactionType)
 
 	cid,_ := hex.DecodeString(publicKey[10:18])
 	currencyId := binary.BigEndian.Uint32(cid)
-	log.Println("Currency id:", currencyId)
+	Logger.Println("Currency id:", currencyId)
 
 	a,_ := hex.DecodeString(publicKey[18:34])
 	amount := binary.BigEndian.Uint64(a)
-	log.Println("Amount:", amount)
+	Logger.Println("Amount:",amount)
 
 	ss := SimpleSend{Amount: amount, CurrencyId: currencyId, TransactionType: transactionType, Sequence: 1}
 	return ss

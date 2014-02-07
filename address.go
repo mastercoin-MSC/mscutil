@@ -5,6 +5,8 @@ import (
 	"github.com/conformal/btcutil"
 	"github.com/conformal/btcwire"
 	"github.com/conformal/btcdb"
+	"encoding/hex"
+_	"fmt"
 )
 
 const ExodusAddress string = "1EXoDusjGwvnjZUyKkxZ4UHEf77z6A5S4P"
@@ -50,7 +52,12 @@ func GetAddrs(pkScript []byte) (ret []Address, scriptClass btcscript.ScriptClass
 	// we add it to tx slice
 	for _, addr := range addrs {
 		// Script address returns the public key if it's a multi sig
-		ret = append(ret, Address{Addr: addr.EncodeAddress(), Raw: addr.ScriptAddress()})
+		if scriptClass == btcscript.MultiSigTy {
+			publicKey := hex.EncodeToString(addr.ScriptAddress())
+			ret = append(ret, Address{Addr: addr.EncodeAddress(), Raw: []byte(publicKey)})
+		}else{
+			ret = append(ret, Address{Addr: addr.EncodeAddress(), Raw: addr.ScriptAddress()})
+		}
 	}
 
 	return
@@ -74,15 +81,13 @@ func GetAddressFromScriptSig(scriptSig []byte) (string, error) {
 type MsgType byte
 
 const (
-	InvalidMsgTy = iota
-	TxMsgTy
-	DexMsgTy
+	TxMsgTy = 0
+	DexSellingTy = 20 
 )
 
 var msgTypeToString = []string{
-	InvalidMsgTy: "Invalid",
-	TxMsgTy:      "Transaction",
-	DexMsgTy:     "Dex",
+	TxMsgTy:      "Simple Send",
+	DexSellingTy:     "Dex Sell Offer",
 }
 
 func (m MsgType) String() string {
@@ -124,28 +129,3 @@ func FindSender(txIns []*btcwire.TxIn, btcdb btcdb.Db) (Address, error) {
       return Address{Addr: highestAddress}, nil
 }
 
-func GetType(tx *btcutil.Tx) (t MsgType) {
-	// Defaults to invalid type
-	t = InvalidMsgTy
-
-	mtx := tx.MsgTx()
-	for _, txOut := range mtx.TxOut {
-		_, scriptType := GetAddrs(txOut.PkScript)
-		var mt MsgType
-
-		// Check the btc Tx type and determine our own type
-		switch scriptType {
-		default:
-			fallthrough
-		case btcscript.MultiSigTy:
-			mt = TxMsgTy
-		}
-
-		// Set the tx type if it's greater (class b is higher than a)
-		if mt > t {
-			t = mt
-		}
-	}
-
-	return
-}
