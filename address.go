@@ -108,6 +108,12 @@ func FindSender(txIns []*btcwire.TxIn, btcdb btcdb.Db) (Address, error) {
 		if err != nil {
 			return Address{}, err
 		}
+		// TODO: During initial sync unconfirmed transactions might be picked up
+		// We should prevent that from showing up but this is a work around
+		// When a transaction is not in the database yet
+		if len(transactions) == 0{
+			continue 
+		}
 
 		previousOutput := transactions[0].Tx.TxOut[index]
 
